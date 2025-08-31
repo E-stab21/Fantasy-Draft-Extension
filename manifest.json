@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "Draft Helper",
+  "version": "1.0",
+  "description": "A chrome extension that helps you draft for an Espn fantasy league",
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
