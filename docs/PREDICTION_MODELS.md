@@ -62,6 +62,6 @@ Otherwise a custom model is extra training cost, weekly breakage, and worse inju
 1. **Decide with ESPN projections** (league scoring).
 2. **Cross-check with Sleeper** when asked (`--sleeper`).
 3. **Use simple optimizers**, not ML: greedy slot fill for lineups; projection delta vs your worst bench piece for waivers.
-4. **Leave the door open** for nflverse-backed research or a later ensemble. Do not train weights in this PR.
+4. **Redraft trade value** (`league values`, `league trade-grade`): short-term VORP over the next few weeks and rest-of-season VORP through the fantasy playoffs. Replacement is the third-best free agent at the position. Contender / bubble / rebuilder weights change how ST and LT mix. A stud tax stops 2-for-1 depth from looking even with an elite starter. This is a valuation engine on public weekly rates, not a trained predictor.
 
-If a later agent is asked to build a model, start from nflverse weekly stats + ESPN scoring settings, and score it against ESPN/Sleeper holdout weeks before replacing the public numbers.
+If a later agent is asked to build a weekly point model, start from nflverse weekly stats + ESPN scoring settings, and score it against ESPN/Sleeper holdout weeks before replacing the public numbers.

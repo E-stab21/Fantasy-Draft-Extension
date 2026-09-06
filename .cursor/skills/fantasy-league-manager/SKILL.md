@@ -30,9 +30,19 @@ python3 -m league_manager roster
 python3 -m league_manager matchup
 python3 -m league_manager lineup-advice
 python3 -m league_manager waiver-advice
+python3 -m league_manager values
 ```
 
 Add `--sleeper` when you want a second projection source.
+
+## Trades (redraft)
+
+```bash
+python3 -m league_manager values --window auto
+python3 -m league_manager trade-grade --send 111,222 --receive 333
+```
+
+`--window` can be `auto`, `contender`, `bubble`, or `rebuilder`. Auto uses record and standings. ST is the next `--horizon` weeks (default 3). LT is remaining regular season plus playoffs. Grade before proposing; `league trade` attaches the same grade on preview.
 
 ## Writes
 

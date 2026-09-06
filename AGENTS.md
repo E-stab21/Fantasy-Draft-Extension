@@ -22,6 +22,8 @@ Work through `python3 -m league_manager` (or `league` if `$HOME/.local/bin` is o
 | Player lookup | `python3 -m league_manager player "Jahmyr Gibbs"` |
 | Start/sit | `python3 -m league_manager lineup-advice` |
 | Waiver targets | `python3 -m league_manager waiver-advice` |
+| ST / LT player values | `python3 -m league_manager values` |
+| Grade a trade | `python3 -m league_manager trade-grade --send IDS --receive IDS` |
 | Second-source projections | add `--sleeper` to advice commands |
 
 Writes are preview-only unless the user explicitly asks you to submit **and** `ESPN_WRITES_ENABLED=true` plus `ESPN_DRY_RUN=false` are set.
@@ -37,7 +39,8 @@ Only add `--confirm` after showing the preview and getting a clear go-ahead.
 
 - Prefer ESPN projected points. They already use this league's scoring. See `docs/PREDICTION_MODELS.md`.
 - Use Sleeper as a second opinion, not a replacement.
-- Do not train or ship a custom prediction model unless the user asks. Public consensus plus this league's ESPN projections is the default.
+- For trades, use `values` and `trade-grade`. This is a redraft league: ST is the next few weeks, LT is rest of season plus playoffs. Weight by whether the user is a contender, bubble team, or rebuilder.
+- Do not train a weekly point model. The trade grader is a VORP valuation engine on public projections, not a learned predictor.
 - Sit injured / OUT / IR / doubtful players.
 - Explain the recommendation in plain language: who to start, who to sit, who to claim, and why.
 - Never print `espn_s2` or `SWID` values.

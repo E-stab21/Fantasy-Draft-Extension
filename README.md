@@ -9,7 +9,7 @@ The original Chrome draft helper still lives in `Chrome_Extension/`. Weekly leag
 1. Reads `AGENTS.md` and the fantasy-league-manager skill.
 2. Loads `ESPN_S2`, `ESPN_SWID`, and `ESPN_LEAGUE_ID` from environment secrets.
 3. Inspects the league, roster, matchup, and free agents.
-4. Gives start/sit and waiver advice.
+4. Gives start/sit, waiver, redraft ST/LT values, and trade grades.
 5. Previews writes (lineup, add/drop, waiver, trade). Live submits stay gated.
 
 ## Setup
@@ -28,6 +28,8 @@ python3 -m league_manager status
 python3 -m league_manager roster
 python3 -m league_manager lineup-advice
 python3 -m league_manager waiver-advice
+python3 -m league_manager values
+python3 -m league_manager trade-grade --send 111 --receive 222
 ```
 
 Writes default to preview:

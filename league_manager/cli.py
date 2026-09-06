@@ -12,6 +12,7 @@ from league_manager.config import ConfigError, auth_status, load_settings
 from league_manager.espn_client import EspnClient
 from league_manager.projections import attach_sleeper_projections
 from league_manager.slots import parse_slot
+from league_manager.value import DEFAULT_SHORT_TERM_WEEKS
 from league_manager.writes import add_drop_payload, lineup_payload, trade_payload
 
 
@@ -92,6 +93,33 @@ def cmd_lineup_advice(args: argparse.Namespace) -> int:
     advice = optimal_lineup(players)
     advice["team"] = {"id": roster.get("id"), "name": roster.get("name")}
     return _print(advice, args.format)
+
+
+def cmd_values(args: argparse.Namespace) -> int:
+    return _print(
+        _client().values(
+            args.team_id,
+            window=args.window,
+            short_term_weeks=args.horizon,
+            season_end_week=args.season_end,
+            sleeper=args.sleeper,
+        ),
+        args.format,
+    )
+
+
+def cmd_trade_grade(args: argparse.Namespace) -> int:
+    return _print(
+        _client().trade_grade(
+            _parse_id_list(args.send),
+            _parse_id_list(args.receive),
+            team_id=args.team_id,
+            window=args.window,
+            short_term_weeks=args.horizon,
+            season_end_week=args.season_end,
+        ),
+        args.format,
+    )
 
 
 def cmd_waiver_advice(args: argparse.Namespace) -> int:
@@ -200,7 +228,16 @@ def cmd_trade(args: argparse.Namespace) -> int:
         comment=args.comment or "",
     )
     result = client.submit_transaction(payload, confirm=args.confirm, scoring_period_id=week)
-    return _print(result.to_dict(), args.format)
+    payload_out = result.to_dict()
+    try:
+        payload_out["grade"] = client.trade_grade(
+            _parse_id_list(args.send),
+            _parse_id_list(args.receive),
+            team_id=team_id,
+        )
+    except Exception as exc:  # noqa: BLE001 - grade is additive on preview
+        payload_out["grade_error"] = str(exc)
+    return _print(payload_out, args.format)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -255,6 +292,32 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--team-id", type=int)
     p.add_argument("--sleeper", action="store_true", help="Overlay Sleeper projections")
     p.set_defaults(func=cmd_lineup_advice)
+
+    p = sub.add_parser("values", help="Redraft ST/LT VORP for a roster")
+    p.add_argument("--team-id", type=int)
+    p.add_argument(
+        "--window",
+        choices=("auto", "contender", "bubble", "rebuilder"),
+        default="auto",
+        help="How hard to weight the next few weeks vs rest of season",
+    )
+    p.add_argument("--horizon", type=int, default=DEFAULT_SHORT_TERM_WEEKS, help="Short-term weeks")
+    p.add_argument("--season-end", type=int, dest="season_end", help="Last fantasy week (default 17)")
+    p.add_argument("--sleeper", action="store_true")
+    p.set_defaults(func=cmd_values)
+
+    p = sub.add_parser("trade-grade", help="Grade a redraft trade on ST and LT surplus")
+    p.add_argument("--team-id", type=int)
+    p.add_argument("--send", required=True, help="Comma-separated ESPN player ids you give up")
+    p.add_argument("--receive", required=True, help="Comma-separated ESPN player ids you get")
+    p.add_argument(
+        "--window",
+        choices=("auto", "contender", "bubble", "rebuilder"),
+        default="auto",
+    )
+    p.add_argument("--horizon", type=int, default=DEFAULT_SHORT_TERM_WEEKS)
+    p.add_argument("--season-end", type=int, dest="season_end")
+    p.set_defaults(func=cmd_trade_grade)
 
     p = sub.add_parser("waiver-advice", help="Rank free-agent adds vs your bench")
     p.add_argument("--team-id", type=int)

@@ -6,6 +6,14 @@ from typing import Any
 
 from league_manager.config import Settings
 from league_manager.serialize import matchup_to_dict, player_to_dict, team_to_dict
+from league_manager.trades import grade_trade
+from league_manager.value import (
+    DEFAULT_SHORT_TERM_WEEKS,
+    context_from_league,
+    infer_window,
+    replacement_baselines,
+    value_players,
+)
 from league_manager.writes import WriteResult, post_transaction
 
 SPORT_IMPORT = {
@@ -158,6 +166,113 @@ class EspnClient:
         if isinstance(found, list):
             return {"found": True, "players": [player_to_dict(item, include_lineup=False) for item in found]}
         return {"found": True, "player": player_to_dict(found, include_lineup=False)}
+
+    def rostered_players(self) -> dict[Any, dict[str, Any]]:
+        found: dict[Any, dict[str, Any]] = {}
+        for team in self.league.teams:
+            payload = team_to_dict(team, include_roster=True)
+            for player in payload.get("roster") or []:
+                player["team_id"] = payload.get("id")
+                player["team_name"] = payload.get("name")
+                if player.get("id") is not None:
+                    found[player["id"]] = player
+        return found
+
+    def player_index(
+        self,
+        extra: list[dict[str, Any]] | None = None,
+        *,
+        fa_size: int = 80,
+    ) -> dict[Any, dict[str, Any]]:
+        found = self.rostered_players()
+        for player in extra or []:
+            if player.get("id") is not None:
+                found.setdefault(player["id"], player)
+        if fa_size:
+            for player in self.free_agents(size=fa_size):
+                if player.get("id") is not None:
+                    found.setdefault(player["id"], player)
+        return found
+
+    def values(
+        self,
+        team_id: int | None = None,
+        *,
+        window: str = "auto",
+        short_term_weeks: int = DEFAULT_SHORT_TERM_WEEKS,
+        season_end_week: int | None = None,
+        fa_size: int = 50,
+        sleeper: bool = False,
+    ) -> dict[str, Any]:
+        team = self.get_team(team_id)
+        context = context_from_league(
+            self.league,
+            team,
+            short_term_weeks=short_term_weeks,
+            season_end_week=season_end_week,
+        )
+        roster = team_to_dict(team, include_roster=True)
+        players = roster.get("roster") or []
+        free_agents = self.free_agents(size=fa_size)
+        if sleeper:
+            from league_manager.projections import attach_sleeper_projections
+
+            week = context.current_week
+            players = attach_sleeper_projections(
+                players, season=self.settings.season, week=week
+            )
+            free_agents = attach_sleeper_projections(
+                free_agents, season=self.settings.season, week=week
+            )
+        baselines = replacement_baselines(free_agents)
+        resolved_window = infer_window(context, window)
+        valued = value_players(players, context, baselines, window=resolved_window)
+        return {
+            "team": {"id": roster.get("id"), "name": roster.get("name")},
+            "window": resolved_window,
+            "context": {
+                "current_week": context.current_week,
+                "short_term_weeks": context.short_term_week_list,
+                "remaining_weeks": context.remaining_weeks,
+                "season_end_week": context.season_end_week,
+                "standing": context.standing,
+                "record": [context.wins, context.losses, context.ties],
+            },
+            "replacement_weekly": baselines,
+            "players": [item.to_dict() for item in valued],
+        }
+
+    def trade_grade(
+        self,
+        send_ids: list[int],
+        receive_ids: list[int],
+        *,
+        team_id: int | None = None,
+        window: str = "auto",
+        short_term_weeks: int = DEFAULT_SHORT_TERM_WEEKS,
+        season_end_week: int | None = None,
+        fa_size: int = 80,
+    ) -> dict[str, Any]:
+        team = self.get_team(team_id)
+        context = context_from_league(
+            self.league,
+            team,
+            short_term_weeks=short_term_weeks,
+            season_end_week=season_end_week,
+        )
+        free_agents = self.free_agents(size=fa_size)
+        players = self.player_index(free_agents, fa_size=0)
+        baselines = replacement_baselines(free_agents)
+        result = grade_trade(
+            send_ids=send_ids,
+            receive_ids=receive_ids,
+            players=players,
+            context=context,
+            baselines=baselines,
+            window=window,
+        )
+        result["team"] = team_to_dict(team, include_roster=False)
+        return result
 
     def activity(self, size: int = 25, msg_type: str | None = None) -> list[dict[str, Any]]:
         items = self.league.recent_activity(size=size, msg_type=msg_type)

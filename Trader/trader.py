@@ -1,1 +1,1 @@
-"""Placeholder. League trades go through the `league trade` CLI in league_manager."""
+"""Placeholder. Grade trades with `python3 -m league_manager trade-grade`."""

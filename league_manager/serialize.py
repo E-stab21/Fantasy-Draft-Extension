@@ -17,11 +17,10 @@ def player_to_dict(player: Any, *, include_lineup: bool = True) -> dict[str, Any
         raw_slot = _attr(player, "lineupSlot")
         if isinstance(raw_slot, int):
             slot_id = raw_slot
-    projected = (
-        _attr(player, "projected_points")
-        if _attr(player, "projected_points") is not None
-        else _attr(player, "projected_avg_points")
-    )
+    projected = _attr(player, "projected_points")
+    projected_avg = _attr(player, "projected_avg_points")
+    if projected is None:
+        projected = projected_avg
     data = {
         "id": _attr(player, "playerId") or _attr(player, "player_id"),
         "name": _attr(player, "name"),
@@ -30,6 +29,8 @@ def player_to_dict(player: Any, *, include_lineup: bool = True) -> dict[str, Any
         "injured": bool(_attr(player, "injured", False)),
         "injury_status": _attr(player, "injuryStatus") or _attr(player, "injury_status"),
         "projected_points": projected,
+        "projected_avg_points": projected_avg,
+        "projected_total_points": _attr(player, "projected_total_points"),
         "points": _attr(player, "points") or _attr(player, "total_points"),
         "percent_owned": _attr(player, "percent_owned"),
         "bye_week": _attr(player, "bye_week"),
