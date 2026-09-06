@@ -1,0 +1,80 @@
+"""Turn espn-api objects into plain JSON-friendly dictionaries."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from league_manager.slots import is_starter_slot, slot_name
+
+
+def _attr(obj: Any, name: str, default: Any = None) -> Any:
+    return getattr(obj, name, default)
+
+
+def player_to_dict(player: Any, *, include_lineup: bool = True) -> dict[str, Any]:
+    slot_id = _attr(player, "lineupSlotId")
+    if slot_id is None:
+        raw_slot = _attr(player, "lineupSlot")
+        if isinstance(raw_slot, int):
+            slot_id = raw_slot
+    projected = (
+        _attr(player, "projected_points")
+        if _attr(player, "projected_points") is not None
+        else _attr(player, "projected_avg_points")
+    )
+    data = {
+        "id": _attr(player, "playerId") or _attr(player, "player_id"),
+        "name": _attr(player, "name"),
+        "position": _attr(player, "position"),
+        "pro_team": _attr(player, "proTeam") or _attr(player, "pro_team"),
+        "injured": bool(_attr(player, "injured", False)),
+        "injury_status": _attr(player, "injuryStatus") or _attr(player, "injury_status"),
+        "projected_points": projected,
+        "points": _attr(player, "points") or _attr(player, "total_points"),
+        "percent_owned": _attr(player, "percent_owned"),
+        "bye_week": _attr(player, "bye_week"),
+    }
+    if include_lineup:
+        data["lineup_slot_id"] = slot_id
+        data["lineup_slot"] = slot_name(slot_id) if slot_id is not None else None
+        data["is_starter"] = is_starter_slot(slot_id)
+    return {key: value for key, value in data.items() if value is not None or key in {"injured"}}
+
+
+def team_to_dict(team: Any, *, include_roster: bool = True) -> dict[str, Any]:
+    owners = _attr(team, "owners") or []
+    owner_ids = []
+    for owner in owners:
+        if isinstance(owner, dict):
+            owner_ids.append(owner.get("id") or owner.get("userId"))
+        else:
+            owner_ids.append(str(owner))
+    data = {
+        "id": _attr(team, "team_id"),
+        "name": _attr(team, "team_name"),
+        "abbrev": _attr(team, "team_abbrev"),
+        "wins": _attr(team, "wins"),
+        "losses": _attr(team, "losses"),
+        "ties": _attr(team, "ties"),
+        "points_for": _attr(team, "points_for"),
+        "points_against": _attr(team, "points_against"),
+        "standing": _attr(team, "standing"),
+        "owners": owner_ids,
+    }
+    if include_roster:
+        roster = _attr(team, "roster") or []
+        data["roster"] = [player_to_dict(player) for player in roster]
+    return data
+
+
+def matchup_to_dict(matchup: Any) -> dict[str, Any]:
+    home = _attr(matchup, "home_team")
+    away = _attr(matchup, "away_team")
+    return {
+        "home": _attr(home, "team_name"),
+        "home_id": _attr(home, "team_id"),
+        "home_score": _attr(matchup, "home_score"),
+        "away": _attr(away, "team_name"),
+        "away_id": _attr(away, "team_id"),
+        "away_score": _attr(matchup, "away_score"),
+    }

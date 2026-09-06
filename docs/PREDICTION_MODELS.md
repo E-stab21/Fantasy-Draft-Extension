@@ -1,0 +1,67 @@
+# Player data and prediction models
+
+Question: should this repo train its own fantasy prediction models, or use public ones?
+
+**Use public projections first. Do not build a custom model unless this league's scoring or decision process outgrows them.**
+
+## What we already get for free
+
+### ESPN (primary)
+
+The unofficial fantasy API returns **league-scoring-adjusted** projected points on rosters and free agents. That is the most important number for start/sit and waivers because PPR vs standard, bonus yards, TE premium, and custom scoring are already applied.
+
+`league lineup-advice` and `league waiver-advice` use these ESPN projections by default.
+
+### Sleeper (secondary, no auth)
+
+Public endpoints:
+
+- `https://api.sleeper.app/v1/state/nfl` — current season/week
+- `https://api.sleeper.app/v1/players/nfl` — player directory (cache daily)
+- `https://api.sleeper.app/v1/players/nfl/trending/add` — add/drop heat
+- `https://api.sleeper.app/projections/nfl/{season}/{week}` — weekly projections (`pts_ppr`, `pts_half_ppr`, `pts_std`)
+
+Pass `--sleeper` to overlay these onto ESPN players by normalized name. Stay under Sleeper's 1000 requests/minute guidance.
+
+### nflverse / nflreadpy (historical context)
+
+Open, analysis-grade NFL data (CC-BY 4.0 for most files):
+
+- Weekly and seasonal player stats
+- Snap counts, depth charts, injuries, schedules
+- Next Gen Stats
+- FantasyPros rankings redistributed as `load_ff_rankings()`
+- Expected yards / fantasy points as `load_ff_opportunity()`
+
+Install with `pip install 'league-manager[research]'` when an agent needs historical research. Not required for weekly lineup management.
+
+### FantasyPros
+
+Official paid REST API (`https://api.fantasypros.com/public/v2/json`) for consensus rankings and projections across 130+ experts. There is no supported free API. This repo does **not** scrape FantasyPros HTML.
+
+If you later add a `FANTASYPROS_API_KEY` secret, it can become a third projection column. Until then, skip it.
+
+### Paid sports-data APIs
+
+SportsDataIO, FantasyData, 4for4, and similar sell projections and injuries. Useful only if you want vendor SLAs. Not needed to manage one league.
+
+## Custom models: when they help, when they do not
+
+Open-source weekly fantasy models (XGBoost / LightGBM / small nets on nflverse features) routinely land **close to, not clearly better than**, industry consensus. Published hobby benchmarks often trail a paid/consensus projection by a few percent of MAE, and beat only naive baselines (last week / season average).
+
+A custom model is worth building only if at least one of these is true:
+
+- The league uses unusual scoring that ESPN projections handle poorly
+- You want season-long simulation, draft capital, or dynasty values ESPN does not expose
+- You will maintain weekly feature pipelines (Vegas lines, injuries, depth-chart changes)
+
+Otherwise a custom model is extra training cost, weekly breakage, and worse injury-news reaction than ESPN/Sleeper/FantasyPros already bake in.
+
+## What this repo does
+
+1. **Decide with ESPN projections** (league scoring).
+2. **Cross-check with Sleeper** when asked (`--sleeper`).
+3. **Use simple optimizers**, not ML: greedy slot fill for lineups; projection delta vs your worst bench piece for waivers.
+4. **Leave the door open** for nflverse-backed research or a later ensemble. Do not train weights in this PR.
+
+If a later agent is asked to build a model, start from nflverse weekly stats + ESPN scoring settings, and score it against ESPN/Sleeper holdout weeks before replacing the public numbers.

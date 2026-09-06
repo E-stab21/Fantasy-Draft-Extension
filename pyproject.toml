@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "league-manager"
+version = "0.1.0"
+description = "ESPN fantasy league manager for Cloud Agents"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "espn-api>=0.44.0",
+    "python-dotenv>=1.0.1",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+research = ["nflreadpy"]
+
+[project.scripts]
+league = "league_manager.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["league_manager*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,2 +1,9 @@
 .venv/
 .idea/
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.league-cache/
+/tmp/
