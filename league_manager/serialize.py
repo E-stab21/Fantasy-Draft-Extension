@@ -11,6 +11,25 @@ def _attr(obj: Any, name: str, default: Any = None) -> Any:
     return getattr(obj, name, default)
 
 
+def weekly_stats_to_dict(player: Any) -> dict[int, dict[str, float | None]]:
+    raw = _attr(player, "stats") or _attr(player, "weekly_stats") or {}
+    weeks: dict[int, dict[str, float | None]] = {}
+    if not isinstance(raw, dict):
+        return weeks
+    for period, payload in raw.items():
+        try:
+            week = int(period)
+        except (TypeError, ValueError):
+            continue
+        if week == 0 or not isinstance(payload, dict):
+            continue
+        weeks[week] = {
+            "points": payload.get("points"),
+            "projected_points": payload.get("projected_points"),
+        }
+    return weeks
+
+
 def player_to_dict(player: Any, *, include_lineup: bool = True) -> dict[str, Any]:
     slot_id = _attr(player, "lineupSlotId")
     if slot_id is None:
@@ -33,7 +52,9 @@ def player_to_dict(player: Any, *, include_lineup: bool = True) -> dict[str, Any
         "projected_total_points": _attr(player, "projected_total_points"),
         "points": _attr(player, "points") or _attr(player, "total_points"),
         "percent_owned": _attr(player, "percent_owned"),
+        "avg_points": _attr(player, "avg_points"),
         "bye_week": _attr(player, "bye_week"),
+        "weekly_stats": weekly_stats_to_dict(player),
     }
     if include_lineup:
         data["lineup_slot_id"] = slot_id

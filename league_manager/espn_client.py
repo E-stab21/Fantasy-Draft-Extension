@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from league_manager.config import Settings
+from league_manager.market import DEFAULT_LOOKBACK, find_opportunities
 from league_manager.serialize import matchup_to_dict, player_to_dict, team_to_dict
 from league_manager.trades import grade_trade
 from league_manager.value import (
@@ -273,6 +274,43 @@ class EspnClient:
         )
         result["team"] = team_to_dict(team, include_roster=False)
         return result
+
+    def opportunities(
+        self,
+        team_id: int | None = None,
+        *,
+        window: str = "auto",
+        short_term_weeks: int = DEFAULT_SHORT_TERM_WEEKS,
+        season_end_week: int | None = None,
+        lookback: int = DEFAULT_LOOKBACK,
+        limit: int = 8,
+        fa_size: int = 50,
+    ) -> dict[str, Any]:
+        team = self.get_team(team_id)
+        context = context_from_league(
+            self.league,
+            team,
+            short_term_weeks=short_term_weeks,
+            season_end_week=season_end_week,
+        )
+        free_agents = self.free_agents(size=fa_size)
+        rostered = list(self.rostered_players().values())
+        baselines = replacement_baselines(free_agents)
+        resolved = infer_window(context, window)
+        valued_list = value_players(rostered, context, baselines, window=resolved)
+        valued = {item.id: item for item in valued_list}
+        found = find_opportunities(
+            rostered,
+            valued,
+            our_team_id=team.team_id,
+            current_week=context.current_week,
+            lookback=lookback,
+            limit=limit,
+        )
+        found["team"] = team_to_dict(team, include_roster=False)
+        found["window"] = resolved
+        found["lookback_weeks"] = lookback
+        return found
 
     def activity(self, size: int = 25, msg_type: str | None = None) -> list[dict[str, Any]]:
         items = self.league.recent_activity(size=size, msg_type=msg_type)

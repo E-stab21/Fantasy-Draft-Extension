@@ -44,6 +44,12 @@ python3 -m league_manager trade-grade --send 111,222 --receive 333
 
 `--window` can be `auto`, `contender`, `bubble`, or `rebuilder`. Auto uses record and standings. ST is the next `--horizon` weeks (default 3). LT is remaining regular season plus playoffs. Grade before proposing; `league trade` attaches the same grade on preview.
 
+```bash
+python3 -m league_manager opportunities
+```
+
+Buy-lows are on other rosters (cold stretch or injury, ROS VORP still positive). Sell-highs are on our roster (heater vs weekly projection). Pairings are suggested; always `trade-grade` before offering. Recency is the *market* signal, not a second projection.
+
 ## Writes
 
 Preview first. Example:

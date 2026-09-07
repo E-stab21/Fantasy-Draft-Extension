@@ -24,6 +24,7 @@ Work through `python3 -m league_manager` (or `league` if `$HOME/.local/bin` is o
 | Waiver targets | `python3 -m league_manager waiver-advice` |
 | ST / LT player values | `python3 -m league_manager values` |
 | Grade a trade | `python3 -m league_manager trade-grade --send IDS --receive IDS` |
+| Buy-low / sell-high | `python3 -m league_manager opportunities` |
 | Second-source projections | add `--sleeper` to advice commands |
 
 Writes are preview-only unless the user explicitly asks you to submit **and** `ESPN_WRITES_ENABLED=true` plus `ESPN_DRY_RUN=false` are set.
@@ -39,7 +40,8 @@ Only add `--confirm` after showing the preview and getting a clear go-ahead.
 
 - Prefer ESPN projected points. They already use this league's scoring. See `docs/PREDICTION_MODELS.md`.
 - Use Sleeper as a second opinion, not a replacement.
-- For trades, use `values` and `trade-grade`. This is a redraft league: ST is the next few weeks, LT is rest of season plus playoffs. Weight by whether the user is a contender, bubble team, or rebuilder.
+- For trades, use `values`, `trade-grade`, and `opportunities`. This is a redraft league: ST is the next few weeks, LT is rest of season plus playoffs. Weight by whether the user is a contender, bubble team, or rebuilder.
+- Buy-low / sell-high compares the last few *actual* games to the weekly projection other managers saw. Our assigned value still uses the forward ESPN projection; do not treat a cold week as a change in true talent.
 - Do not train a weekly point model. The trade grader is a VORP valuation engine on public projections, not a learned predictor.
 - Sit injured / OUT / IR / doubtful players.
 - Explain the recommendation in plain language: who to start, who to sit, who to claim, and why.

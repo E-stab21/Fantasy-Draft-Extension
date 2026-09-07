@@ -31,6 +31,10 @@ class FakeTeam:
                 projected_points=15,
                 injured=False,
                 proTeam="DET",
+                stats={
+                    1: {"points": 28.0, "projected_points": 15.0},
+                    2: {"points": 31.0, "projected_points": 15.0},
+                },
             ),
             FakePlayer(
                 playerId=12,
@@ -75,6 +79,10 @@ class FakeLeague:
                         projected_points=18,
                         injured=False,
                         proTeam="CIN",
+                        stats={
+                            1: {"points": 5.0, "projected_points": 18.0},
+                            2: {"points": 6.0, "projected_points": 18.0},
+                        },
                     )
                 ],
             ),
@@ -152,6 +160,11 @@ def test_cli_reads_with_fake_league(monkeypatch, capsys):
     assert grade["verdict"]
     assert grade["send"][0]["id"] == 11
     assert grade["receive"][0]["id"] == 21
+
+    assert main(["opportunities"]) == 0
+    market = json.loads(capsys.readouterr().out)
+    assert market["sell_high"][0]["id"] == 11
+    assert market["buy_low"][0]["id"] == 21
 
 
 def test_cli_auth_status_without_secrets(monkeypatch, capsys):

@@ -63,5 +63,6 @@ Otherwise a custom model is extra training cost, weekly breakage, and worse inju
 2. **Cross-check with Sleeper** when asked (`--sleeper`).
 3. **Use simple optimizers**, not ML: greedy slot fill for lineups; projection delta vs your worst bench piece for waivers.
 4. **Redraft trade value** (`league values`, `league trade-grade`): short-term VORP over the next few weeks and rest-of-season VORP through the fantasy playoffs. Replacement is the third-best free agent at the position. Contender / bubble / rebuilder weights change how ST and LT mix. A stud tax stops 2-for-1 depth from looking even with an elite starter. This is a valuation engine on public weekly rates, not a trained predictor.
+5. **Buy-low / sell-high** (`league opportunities`): last 1–3 actual games vs those weeks’ ESPN projections (the number other managers anchored on). Cold + still-positive ROS VORP on someone else’s roster is a buy-low. A heater on our roster is a sell-high. Injury with remaining ROS value is also a buy-low. Snap share and recent averages are **not** mixed into our forward value again; they are already inside the projection.
 
 If a later agent is asked to build a weekly point model, start from nflverse weekly stats + ESPN scoring settings, and score it against ESPN/Sleeper holdout weeks before replacing the public numbers.

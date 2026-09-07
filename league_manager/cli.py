@@ -10,6 +10,7 @@ from typing import Any
 from league_manager.advise import optimal_lineup, waiver_targets
 from league_manager.config import ConfigError, auth_status, load_settings
 from league_manager.espn_client import EspnClient
+from league_manager.market import DEFAULT_LOOKBACK
 from league_manager.projections import attach_sleeper_projections
 from league_manager.slots import parse_slot
 from league_manager.value import DEFAULT_SHORT_TERM_WEEKS
@@ -103,6 +104,20 @@ def cmd_values(args: argparse.Namespace) -> int:
             short_term_weeks=args.horizon,
             season_end_week=args.season_end,
             sleeper=args.sleeper,
+        ),
+        args.format,
+    )
+
+
+def cmd_opportunities(args: argparse.Namespace) -> int:
+    return _print(
+        _client().opportunities(
+            args.team_id,
+            window=args.window,
+            short_term_weeks=args.horizon,
+            season_end_week=args.season_end,
+            lookback=args.lookback,
+            limit=args.limit,
         ),
         args.format,
     )
@@ -318,6 +333,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--horizon", type=int, default=DEFAULT_SHORT_TERM_WEEKS)
     p.add_argument("--season-end", type=int, dest="season_end")
     p.set_defaults(func=cmd_trade_grade)
+
+    p = sub.add_parser(
+        "opportunities",
+        help="Buy-low / sell-high spots where recency likely disagrees with our value",
+    )
+    p.add_argument("--team-id", type=int)
+    p.add_argument(
+        "--window",
+        choices=("auto", "contender", "bubble", "rebuilder"),
+        default="auto",
+    )
+    p.add_argument("--horizon", type=int, default=DEFAULT_SHORT_TERM_WEEKS)
+    p.add_argument("--season-end", type=int, dest="season_end")
+    p.add_argument("--lookback", type=int, default=DEFAULT_LOOKBACK, help="Recent games to use as the market anchor")
+    p.add_argument("--limit", type=int, default=8)
+    p.set_defaults(func=cmd_opportunities)
 
     p = sub.add_parser("waiver-advice", help="Rank free-agent adds vs your bench")
     p.add_argument("--team-id", type=int)
