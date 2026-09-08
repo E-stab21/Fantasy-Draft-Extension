@@ -97,6 +97,7 @@ def auth_status() -> dict[str, object]:
         "ESPN_LEAGUE_ID": bool(os.getenv("ESPN_LEAGUE_ID", "").strip()),
         "ESPN_TEAM_ID": bool(os.getenv("ESPN_TEAM_ID", "").strip()),
         "ESPN_SEASON": bool(os.getenv("ESPN_SEASON", "").strip()),
+        "FANTASYPROS_API_KEY": bool(os.getenv("FANTASYPROS_API_KEY", "").strip()),
     }
     required = ["ESPN_S2", "ESPN_SWID", "ESPN_LEAGUE_ID"]
     return {

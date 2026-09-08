@@ -11,18 +11,18 @@ class FakePlayer:
 
 
 class FakeTeam:
-    def __init__(self):
-        self.team_id = 7
-        self.team_name = "Test Squad"
+    def __init__(self, team_id=7, name="Test Squad", standing=3, wins=2, losses=1, roster=None, owners=None):
+        self.team_id = team_id
+        self.team_name = name
         self.team_abbrev = "TST"
-        self.wins = 2
-        self.losses = 1
+        self.wins = wins
+        self.losses = losses
         self.ties = 0
         self.points_for = 240.5
         self.points_against = 210.0
-        self.standing = 3
-        self.owners = [{"id": "{SWID}"}]
-        self.roster = [
+        self.standing = standing
+        self.owners = owners if owners is not None else [{"id": "{SWID}"}]
+        self.roster = roster or [
             FakePlayer(
                 playerId=11,
                 name="Starter RB",
@@ -31,6 +31,10 @@ class FakeTeam:
                 projected_points=15,
                 injured=False,
                 proTeam="DET",
+                stats={
+                    1: {"points": 28.0, "projected_points": 15.0},
+                    2: {"points": 31.0, "projected_points": 15.0},
+                },
             ),
             FakePlayer(
                 playerId=12,
@@ -49,6 +53,7 @@ class FakeSettings:
     team_count = 10
     playoff_team_count = 4
     scoring_type = "ppr"
+    reg_season_count = 14
 
 
 class FakeLeague:
@@ -56,7 +61,32 @@ class FakeLeague:
         self.settings = FakeSettings()
         self.current_week = 3
         self.nfl_week = 3
-        self.teams = [FakeTeam()]
+        self.teams = [
+            FakeTeam(),
+            FakeTeam(
+                team_id=8,
+                name="Other Squad",
+                standing=8,
+                wins=1,
+                losses=2,
+                owners=[{"id": "{OTHER}"}],
+                roster=[
+                    FakePlayer(
+                        playerId=21,
+                        name="WR1",
+                        position="WR",
+                        lineupSlotId=4,
+                        projected_points=18,
+                        injured=False,
+                        proTeam="CIN",
+                        stats={
+                            1: {"points": 5.0, "projected_points": 18.0},
+                            2: {"points": 6.0, "projected_points": 18.0},
+                        },
+                    )
+                ],
+            ),
+        ]
 
     def standings(self):
         return self.teams
@@ -119,6 +149,28 @@ def test_cli_reads_with_fake_league(monkeypatch, capsys):
     preview = json.loads(capsys.readouterr().out)
     assert preview["executed"] is False
     assert preview["payload"]["type"] == "FREEAGENT"
+
+    assert main(["values"]) == 0
+    values = json.loads(capsys.readouterr().out)
+    assert values["players"][0]["st_vorp"] is not None
+    assert "lt_vorp" in values["players"][0]
+
+    assert main(["trade-grade", "--send", "11", "--receive", "21"]) == 0
+    grade = json.loads(capsys.readouterr().out)
+    assert grade["verdict"]
+    assert grade["send"][0]["id"] == 11
+    assert grade["receive"][0]["id"] == 21
+
+    assert main(["opportunities"]) == 0
+    market = json.loads(capsys.readouterr().out)
+    assert market["sell_high"][0]["id"] == 11
+    assert market["buy_low"][0]["id"] == 21
+
+    assert main(["trade-search", "--kinds", "1:1", "--limit", "5"]) == 0
+    searched = json.loads(capsys.readouterr().out)
+    assert searched["considered"] >= 1
+    assert "trades" in searched
+    assert searched["sources"]["espn_remainder"] is True
 
 
 def test_cli_auth_status_without_secrets(monkeypatch, capsys):

@@ -39,7 +39,7 @@ Install with `pip install 'league-manager[research]'` when an agent needs histor
 
 Official paid REST API (`https://api.fantasypros.com/public/v2/json`) for consensus rankings and projections across 130+ experts. There is no supported free API. This repo does **not** scrape FantasyPros HTML.
 
-If you later add a `FANTASYPROS_API_KEY` secret, it can become a third projection column. Until then, skip it.
+`FANTASYPROS_API_KEY` is used when present. The official REST API (`https://api.fantasypros.com/public/v2/json`, `x-api-key` header) is the first ROS source for trade value. This repo does not scrape FantasyPros HTML. Without a key, valuation falls through to Sleeper remaining weeks (`--sleeper`) and ESPN season remainder.
 
 ### Paid sports-data APIs
 
@@ -59,9 +59,11 @@ Otherwise a custom model is extra training cost, weekly breakage, and worse inju
 
 ## What this repo does
 
-1. **Decide with ESPN projections** (league scoring).
+1. **Start/sit with ESPN this-week projections** (league scoring). `lineup-advice` stays here.
 2. **Cross-check with Sleeper** when asked (`--sleeper`).
 3. **Use simple optimizers**, not ML: greedy slot fill for lineups; projection delta vs your worst bench piece for waivers.
-4. **Leave the door open** for nflverse-backed research or a later ensemble. Do not train weights in this PR.
+4. **Redraft trade value** (`league values`, `league trade-grade`): short-term VORP over the next few weeks, rest-of-season VORP through the fantasy playoffs. LT is **not** just this week × weeks left. Order: FantasyPros ROS → Sleeper remaining-week sum → ESPN `projected_total_points − points already scored` → weekly rate × remaining games. Replacement is the third-best free agent at the position. Contender / bubble / rebuilder weights change how ST and LT mix. A stud tax stops 2-for-1 depth from looking even with an elite starter.
+5. **Trade search** (`league trade-search`): enumerate 1:1, 2:1, and 1:2 packages against other rosters (hundreds to tens of thousands). Keep deals that are +EV for us on ROS VORP and close-to-even on ESPN face value (weekly × remaining games), so the other manager can say yes.
+6. **Buy-low / sell-high** (`league opportunities`): last 1–3 actual games vs those weeks’ ESPN projections (the number other managers anchored on). Cold + still-positive ROS VORP on someone else’s roster is a buy-low. A heater on our roster is a sell-high. Injury with remaining ROS value is also a buy-low. Snap share and recent averages are **not** mixed into our forward value again; they are already inside the projection.
 
-If a later agent is asked to build a model, start from nflverse weekly stats + ESPN scoring settings, and score it against ESPN/Sleeper holdout weeks before replacing the public numbers.
+If a later agent is asked to build a weekly point model, start from nflverse weekly stats + ESPN scoring settings, and score it against ESPN/Sleeper holdout weeks before replacing the public numbers.

@@ -9,7 +9,7 @@ The original Chrome draft helper still lives in `Chrome_Extension/`. Weekly leag
 1. Reads `AGENTS.md` and the fantasy-league-manager skill.
 2. Loads `ESPN_S2`, `ESPN_SWID`, and `ESPN_LEAGUE_ID` from environment secrets.
 3. Inspects the league, roster, matchup, and free agents.
-4. Gives start/sit and waiver advice.
+4. Gives start/sit, waiver, redraft ST/LT values, trade grades, trade search, and buy-low / sell-high opportunities.
 5. Previews writes (lineup, add/drop, waiver, trade). Live submits stay gated.
 
 ## Setup
@@ -28,6 +28,10 @@ python3 -m league_manager status
 python3 -m league_manager roster
 python3 -m league_manager lineup-advice
 python3 -m league_manager waiver-advice
+python3 -m league_manager values
+python3 -m league_manager trade-grade --send 111 --receive 222
+python3 -m league_manager trade-search
+python3 -m league_manager opportunities
 ```
 
 Writes default to preview:
@@ -40,7 +44,7 @@ Live posts require `ESPN_WRITES_ENABLED=true`, `ESPN_DRY_RUN=false`, and `--conf
 
 ## Predictions
 
-Do **not** train a custom model first. ESPN already returns league-scoring-adjusted projections. Sleeper is the free second source (`--sleeper`). Research and the "build vs buy" recommendation are in [docs/PREDICTION_MODELS.md](docs/PREDICTION_MODELS.md).
+Do **not** train a custom model first. Start/sit uses ESPN league-scoring-adjusted weekly projections. Trade ROS prefers FantasyPros (official API + `FANTASYPROS_API_KEY`), Sleeper remaining weeks (`--sleeper`), or ESPN season projection minus points scored — not this week flattened across the calendar. Details in [docs/PREDICTION_MODELS.md](docs/PREDICTION_MODELS.md).
 
 ## Tests
 
