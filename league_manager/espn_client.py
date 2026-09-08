@@ -6,6 +6,8 @@ from typing import Any
 
 from league_manager.config import Settings
 from league_manager.market import DEFAULT_LOOKBACK, find_opportunities
+from league_manager.projections import league_scoring
+from league_manager.search import parse_kinds, search_trades
 from league_manager.serialize import matchup_to_dict, player_to_dict, team_to_dict
 from league_manager.trades import grade_trade
 from league_manager.value import (
@@ -179,6 +181,51 @@ class EspnClient:
                     found[player["id"]] = player
         return found
 
+    def _enrich_players(
+        self,
+        players: list[dict[str, Any]],
+        *,
+        current_week: int,
+        season_end_week: int,
+        sleeper: bool = False,
+    ) -> list[dict[str, Any]]:
+        scoring = league_scoring(self.league)
+        enriched = players
+        if sleeper:
+            from league_manager.projections import attach_sleeper_projections, attach_sleeper_ros
+
+            enriched = attach_sleeper_projections(
+                enriched,
+                season=self.settings.season,
+                week=current_week,
+                scoring=scoring,
+            )
+            enriched = attach_sleeper_ros(
+                enriched,
+                season=self.settings.season,
+                current_week=current_week,
+                through=season_end_week,
+                scoring=scoring,
+            )
+        if self.settings.fantasypros_api_key:
+            from league_manager.fantasypros import attach_fantasypros
+
+            fp_scoring = {"ppr": "PPR", "half": "HALF", "std": "STD"}.get(scoring, "PPR")
+            enriched = attach_fantasypros(
+                enriched,
+                api_key=self.settings.fantasypros_api_key,
+                season=self.settings.season,
+                scoring=fp_scoring,
+            )
+        return enriched
+
+    def _ros_source_flags(self, *, sleeper: bool) -> dict[str, bool]:
+        return {
+            "espn_remainder": True,
+            "sleeper_ros": bool(sleeper),
+            "fantasypros": bool(self.settings.fantasypros_api_key),
+        }
+
     def player_index(
         self,
         extra: list[dict[str, Any]] | None = None,
@@ -215,22 +262,25 @@ class EspnClient:
         roster = team_to_dict(team, include_roster=True)
         players = roster.get("roster") or []
         free_agents = self.free_agents(size=fa_size)
-        if sleeper:
-            from league_manager.projections import attach_sleeper_projections
-
-            week = context.current_week
-            players = attach_sleeper_projections(
-                players, season=self.settings.season, week=week
-            )
-            free_agents = attach_sleeper_projections(
-                free_agents, season=self.settings.season, week=week
-            )
+        players = self._enrich_players(
+            players,
+            current_week=context.current_week,
+            season_end_week=context.season_end_week,
+            sleeper=sleeper,
+        )
+        free_agents = self._enrich_players(
+            free_agents,
+            current_week=context.current_week,
+            season_end_week=context.season_end_week,
+            sleeper=sleeper,
+        )
         baselines = replacement_baselines(free_agents)
         resolved_window = infer_window(context, window)
         valued = value_players(players, context, baselines, window=resolved_window)
         return {
             "team": {"id": roster.get("id"), "name": roster.get("name")},
             "window": resolved_window,
+            "sources": self._ros_source_flags(sleeper=sleeper),
             "context": {
                 "current_week": context.current_week,
                 "short_term_weeks": context.short_term_week_list,
@@ -253,6 +303,7 @@ class EspnClient:
         short_term_weeks: int = DEFAULT_SHORT_TERM_WEEKS,
         season_end_week: int | None = None,
         fa_size: int = 80,
+        sleeper: bool = False,
     ) -> dict[str, Any]:
         team = self.get_team(team_id)
         context = context_from_league(
@@ -263,6 +314,13 @@ class EspnClient:
         )
         free_agents = self.free_agents(size=fa_size)
         players = self.player_index(free_agents, fa_size=0)
+        enriched = self._enrich_players(
+            list(players.values()),
+            current_week=context.current_week,
+            season_end_week=context.season_end_week,
+            sleeper=sleeper,
+        )
+        players = {player["id"]: player for player in enriched if player.get("id") is not None}
         baselines = replacement_baselines(free_agents)
         result = grade_trade(
             send_ids=send_ids,
@@ -273,6 +331,7 @@ class EspnClient:
             window=window,
         )
         result["team"] = team_to_dict(team, include_roster=False)
+        result["sources"] = self._ros_source_flags(sleeper=sleeper)
         return result
 
     def opportunities(
@@ -285,6 +344,7 @@ class EspnClient:
         lookback: int = DEFAULT_LOOKBACK,
         limit: int = 8,
         fa_size: int = 50,
+        sleeper: bool = False,
     ) -> dict[str, Any]:
         team = self.get_team(team_id)
         context = context_from_league(
@@ -294,7 +354,12 @@ class EspnClient:
             season_end_week=season_end_week,
         )
         free_agents = self.free_agents(size=fa_size)
-        rostered = list(self.rostered_players().values())
+        rostered = self._enrich_players(
+            list(self.rostered_players().values()),
+            current_week=context.current_week,
+            season_end_week=context.season_end_week,
+            sleeper=sleeper,
+        )
         baselines = replacement_baselines(free_agents)
         resolved = infer_window(context, window)
         valued_list = value_players(rostered, context, baselines, window=resolved)
@@ -310,7 +375,67 @@ class EspnClient:
         found["team"] = team_to_dict(team, include_roster=False)
         found["window"] = resolved
         found["lookback_weeks"] = lookback
+        found["sources"] = self._ros_source_flags(sleeper=sleeper)
         return found
+
+    def trade_search(
+        self,
+        team_id: int | None = None,
+        *,
+        window: str = "auto",
+        short_term_weeks: int = DEFAULT_SHORT_TERM_WEEKS,
+        season_end_week: int | None = None,
+        kinds: str | None = None,
+        limit: int = 40,
+        min_surplus: float = 1.0,
+        with_team_id: int | None = None,
+        fa_size: int = 50,
+        sleeper: bool = False,
+    ) -> dict[str, Any]:
+        team = self.get_team(team_id)
+        context = context_from_league(
+            self.league,
+            team,
+            short_term_weeks=short_term_weeks,
+            season_end_week=season_end_week,
+        )
+        free_agents = self.free_agents(size=fa_size)
+        teams = [team_to_dict(item, include_roster=True) for item in self.league.teams]
+        rostered = []
+        for payload in teams:
+            for player in payload.get("roster") or []:
+                player["team_id"] = payload.get("id")
+                player["team_name"] = payload.get("name")
+                rostered.append(player)
+        rostered = self._enrich_players(
+            rostered,
+            current_week=context.current_week,
+            season_end_week=context.season_end_week,
+            sleeper=sleeper,
+        )
+        by_id = {player["id"]: player for player in rostered if player.get("id") is not None}
+        for payload in teams:
+            payload["roster"] = [
+                by_id[player["id"]]
+                for player in (payload.get("roster") or [])
+                if player.get("id") in by_id
+            ]
+        baselines = replacement_baselines(free_agents)
+        result = search_trades(
+            our_team_id=team.team_id,
+            teams=teams,
+            players=by_id,
+            context=context,
+            baselines=baselines,
+            window=window,
+            kinds=parse_kinds(kinds),
+            limit=limit,
+            min_surplus=min_surplus,
+            with_team_id=with_team_id,
+        )
+        result["team"] = team_to_dict(team, include_roster=False)
+        result["sources"] = self._ros_source_flags(sleeper=sleeper)
+        return result
 
     def activity(self, size: int = 25, msg_type: str | None = None) -> list[dict[str, Any]]:
         items = self.league.recent_activity(size=size, msg_type=msg_type)

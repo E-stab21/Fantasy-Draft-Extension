@@ -38,11 +38,12 @@ Add `--sleeper` when you want a second projection source.
 ## Trades (redraft)
 
 ```bash
-python3 -m league_manager values --window auto
-python3 -m league_manager trade-grade --send 111,222 --receive 333
+python3 -m league_manager values --window auto --sleeper
+python3 -m league_manager trade-search --sleeper
+python3 -m league_manager trade-grade --send 111,222 --receive 333 --sleeper
 ```
 
-`--window` can be `auto`, `contender`, `bubble`, or `rebuilder`. Auto uses record and standings. ST is the next `--horizon` weeks (default 3). LT is remaining regular season plus playoffs. Grade before proposing; `league trade` attaches the same grade on preview.
+`--window` can be `auto`, `contender`, `bubble`, or `rebuilder`. Auto uses record and standings. ST is the next `--horizon` weeks (default 3). LT prefers FantasyPros ROS, Sleeper remaining weeks, or ESPN season remainder over flattening this week. `trade-search` walks 1:1 / 2:1 / 1:2 against every roster and keeps packages that are +EV for us and close on ESPN face value. Grade before proposing; `league trade` attaches the same grade on preview.
 
 ```bash
 python3 -m league_manager opportunities
@@ -64,4 +65,4 @@ Submit only when the user says to execute, then add `--confirm`. Live posts also
 
 ## Projections
 
-Do not train a model unless asked. ESPN projections already match league scoring. Sleeper is the free overlay. FantasyPros has a paid official API; do not scrape it. Research notes live in `docs/PREDICTION_MODELS.md`.
+Do not train a model unless asked. Start/sit uses ESPN this-week projections. Trade ROS uses FantasyPros (official API + `FANTASYPROS_API_KEY` only — do not scrape), Sleeper remaining weeks (`--sleeper`), or ESPN season projection minus points scored. Research notes live in `docs/PREDICTION_MODELS.md`.

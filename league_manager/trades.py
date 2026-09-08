@@ -79,6 +79,55 @@ def verdict(blended: float) -> str:
     return "reject"
 
 
+def grade_valued_trade(
+    *,
+    send_values: list[PlayerValue],
+    recv_values: list[PlayerValue],
+    send_players: list[dict[str, Any]],
+    recv_players: list[dict[str, Any]],
+    context: LeagueContext,
+    window: str,
+) -> dict[str, Any]:
+    st_w, lt_w = window_weights(window)
+    send_st = sum(item.st_vorp for item in send_values)
+    send_lt = sum(item.lt_vorp for item in send_values)
+    recv_st = sum(item.st_vorp for item in recv_values)
+    recv_lt = sum(item.lt_vorp for item in recv_values)
+    delta_st = recv_st - send_st
+    delta_lt = recv_lt - send_lt
+    stud_tax = concentration_penalty(send_values, recv_values)
+    hole_penalty, hole_notes = lineup_hole_penalty(send_players, recv_players)
+    blended = st_w * delta_st + lt_w * delta_lt - stud_tax - hole_penalty
+    notes = [
+        f"Redraft window is {window} (ST weight {st_w:.0%}, LT weight {lt_w:.0%}).",
+        "ST is the next few weeks; LT is rest of this season including playoffs.",
+    ]
+    if stud_tax > 0:
+        notes.append("Stud tax applied: you are breaking up an elite piece for depth.")
+    if stud_tax < 0:
+        notes.append("Consolidation bonus: you are turning depth into a locked starter.")
+    notes.extend(hole_notes)
+    if context.current_week >= context.regular_season_end:
+        notes.append("Regular season is over or nearly over; playoff schedule dominates.")
+    return {
+        "window": window,
+        "weights": {"st": st_w, "lt": lt_w},
+        "grade": letter_grade(blended),
+        "verdict": verdict(blended),
+        "blended": round(blended, 2),
+        "delta_st": round(delta_st, 2),
+        "delta_lt": round(delta_lt, 2),
+        "stud_tax": stud_tax,
+        "lineup_hole_penalty": hole_penalty,
+        "send": [item.to_dict() for item in send_values],
+        "receive": [item.to_dict() for item in recv_values],
+        "send_totals": {"st_vorp": round(send_st, 2), "lt_vorp": round(send_lt, 2)},
+        "receive_totals": {"st_vorp": round(recv_st, 2), "lt_vorp": round(recv_lt, 2)},
+        "notes": notes,
+        "summary": _summary(window, delta_st, delta_lt, blended),
+    }
+
+
 def grade_trade(
     *,
     send_ids: list[int],
@@ -93,46 +142,16 @@ def grade_trade(
     send_players = [_lookup(players, player_id) for player_id in send_ids]
     recv_players = [_lookup(players, player_id) for player_id in receive_ids]
     resolved_window = infer_window(context, window)
-    st_w, lt_w = window_weights(resolved_window)
     send_values = [value_player(player, context, baselines, window=resolved_window) for player in send_players]
     recv_values = [value_player(player, context, baselines, window=resolved_window) for player in recv_players]
-    send_st = sum(item.st_vorp for item in send_values)
-    send_lt = sum(item.lt_vorp for item in send_values)
-    recv_st = sum(item.st_vorp for item in recv_values)
-    recv_lt = sum(item.lt_vorp for item in recv_values)
-    delta_st = recv_st - send_st
-    delta_lt = recv_lt - send_lt
-    stud_tax = concentration_penalty(send_values, recv_values)
-    hole_penalty, hole_notes = lineup_hole_penalty(send_players, recv_players)
-    blended = st_w * delta_st + lt_w * delta_lt - stud_tax - hole_penalty
-    notes = [
-        f"Redraft window is {resolved_window} (ST weight {st_w:.0%}, LT weight {lt_w:.0%}).",
-        "ST is the next few weeks; LT is rest of this season including playoffs.",
-    ]
-    if stud_tax > 0:
-        notes.append("Stud tax applied: you are breaking up an elite piece for depth.")
-    if stud_tax < 0:
-        notes.append("Consolidation bonus: you are turning depth into a locked starter.")
-    notes.extend(hole_notes)
-    if context.current_week >= context.regular_season_end:
-        notes.append("Regular season is over or nearly over; playoff schedule dominates.")
-    return {
-        "window": resolved_window,
-        "weights": {"st": st_w, "lt": lt_w},
-        "grade": letter_grade(blended),
-        "verdict": verdict(blended),
-        "blended": round(blended, 2),
-        "delta_st": round(delta_st, 2),
-        "delta_lt": round(delta_lt, 2),
-        "stud_tax": stud_tax,
-        "lineup_hole_penalty": hole_penalty,
-        "send": [item.to_dict() for item in send_values],
-        "receive": [item.to_dict() for item in recv_values],
-        "send_totals": {"st_vorp": round(send_st, 2), "lt_vorp": round(send_lt, 2)},
-        "receive_totals": {"st_vorp": round(recv_st, 2), "lt_vorp": round(recv_lt, 2)},
-        "notes": notes,
-        "summary": _summary(resolved_window, delta_st, delta_lt, blended),
-    }
+    return grade_valued_trade(
+        send_values=send_values,
+        recv_values=recv_values,
+        send_players=send_players,
+        recv_players=recv_players,
+        context=context,
+        window=resolved_window,
+    )
 
 
 def _summary(window: str, delta_st: float, delta_lt: float, blended: float) -> str:

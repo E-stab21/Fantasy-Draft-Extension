@@ -24,8 +24,9 @@ Work through `python3 -m league_manager` (or `league` if `$HOME/.local/bin` is o
 | Waiver targets | `python3 -m league_manager waiver-advice` |
 | ST / LT player values | `python3 -m league_manager values` |
 | Grade a trade | `python3 -m league_manager trade-grade --send IDS --receive IDS` |
+| Search sendable trades | `python3 -m league_manager trade-search` |
 | Buy-low / sell-high | `python3 -m league_manager opportunities` |
-| Second-source projections | add `--sleeper` to advice commands |
+| Better ROS (Sleeper week-sum) | add `--sleeper` to `values`, `trade-grade`, `trade-search` |
 
 Writes are preview-only unless the user explicitly asks you to submit **and** `ESPN_WRITES_ENABLED=true` plus `ESPN_DRY_RUN=false` are set.
 
@@ -38,11 +39,11 @@ Only add `--confirm` after showing the preview and getting a clear go-ahead.
 
 ## Decision rules
 
-- Prefer ESPN projected points. They already use this league's scoring. See `docs/PREDICTION_MODELS.md`.
-- Use Sleeper as a second opinion, not a replacement.
-- For trades, use `values`, `trade-grade`, and `opportunities`. This is a redraft league: ST is the next few weeks, LT is rest of season plus playoffs. Weight by whether the user is a contender, bubble team, or rebuilder.
-- Buy-low / sell-high compares the last few *actual* games to the weekly projection other managers saw. Our assigned value still uses the forward ESPN projection; do not treat a cold week as a change in true talent.
-- Do not train a weekly point model. The trade grader is a VORP valuation engine on public projections, not a learned predictor.
+- Start/sit with ESPN this-week projections (`lineup-advice`). They already use this league's scoring.
+- For trades, do **not** flatten this week across the rest of the year if a real ROS number exists. LT prefers FantasyPros ROS (when `FANTASYPROS_API_KEY` is set), then Sleeper remaining-week sums (`--sleeper`), then ESPN season projection minus points scored, then weekly × games left. See `docs/PREDICTION_MODELS.md`.
+- Run `trade-search` to enumerate 1:1 / 2:1 / 1:2 packages. Keep ones that are +EV for us on ROS VORP and close-to-even on ESPN face value so the other manager can accept. Then `trade-grade` the ones you want to send.
+- Buy-low / sell-high compares the last few *actual* games to the weekly projection other managers saw. Recency is the market signal, not a second projection.
+- Do not train a weekly point model. Do not scrape FantasyPros HTML.
 - Sit injured / OUT / IR / doubtful players.
 - Explain the recommendation in plain language: who to start, who to sit, who to claim, and why.
 - Never print `espn_s2` or `SWID` values.

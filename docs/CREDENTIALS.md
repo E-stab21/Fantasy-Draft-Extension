@@ -21,7 +21,7 @@ Never commit these values. Put them in Cloud Agent environment secrets or a loca
 | `ESPN_SPORT` | `nfl` (default), `nba`, `mlb`, or `nhl` |
 | `ESPN_WRITES_ENABLED` | Set `true` only when you want live lineup/waiver/trade posts |
 | `ESPN_DRY_RUN` | Defaults to `true`. Set `false` with writes enabled to actually submit |
-| `FANTASYPROS_API_KEY` | Optional paid FantasyPros key; unused unless you add that path later |
+| `FANTASYPROS_API_KEY` | Optional paid FantasyPros key. When set, ROS trade value uses their official REST API (never HTML scrape) |
 
 ## How to copy cookies
 

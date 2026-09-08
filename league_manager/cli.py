@@ -118,6 +118,7 @@ def cmd_opportunities(args: argparse.Namespace) -> int:
             season_end_week=args.season_end,
             lookback=args.lookback,
             limit=args.limit,
+            sleeper=args.sleeper,
         ),
         args.format,
     )
@@ -132,6 +133,24 @@ def cmd_trade_grade(args: argparse.Namespace) -> int:
             window=args.window,
             short_term_weeks=args.horizon,
             season_end_week=args.season_end,
+            sleeper=args.sleeper,
+        ),
+        args.format,
+    )
+
+
+def cmd_trade_search(args: argparse.Namespace) -> int:
+    return _print(
+        _client().trade_search(
+            args.team_id,
+            window=args.window,
+            short_term_weeks=args.horizon,
+            season_end_week=args.season_end,
+            kinds=args.kinds,
+            limit=args.limit,
+            min_surplus=args.min_surplus,
+            with_team_id=args.with_team,
+            sleeper=args.sleeper,
         ),
         args.format,
     )
@@ -332,7 +351,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--horizon", type=int, default=DEFAULT_SHORT_TERM_WEEKS)
     p.add_argument("--season-end", type=int, dest="season_end")
+    p.add_argument("--sleeper", action="store_true")
     p.set_defaults(func=cmd_trade_grade)
+
+    p = sub.add_parser(
+        "trade-search",
+        help="Enumerate hundreds of 1:1 / 2:1 / 1:2 trades and keep +EV packages",
+    )
+    p.add_argument("--team-id", type=int)
+    p.add_argument(
+        "--window",
+        choices=("auto", "contender", "bubble", "rebuilder"),
+        default="auto",
+    )
+    p.add_argument("--horizon", type=int, default=DEFAULT_SHORT_TERM_WEEKS)
+    p.add_argument("--season-end", type=int, dest="season_end")
+    p.add_argument("--kinds", default="1:1,2:1,1:2", help="Comma-separated: 1:1,2:1,1:2")
+    p.add_argument("--limit", type=int, default=40)
+    p.add_argument("--min-surplus", type=float, default=1.0, dest="min_surplus")
+    p.add_argument("--with-team", type=int, dest="with_team", help="Only search this opponent")
+    p.add_argument("--sleeper", action="store_true", help="Sum Sleeper remaining weeks for ROS")
+    p.set_defaults(func=cmd_trade_search)
 
     p = sub.add_parser(
         "opportunities",
@@ -348,6 +387,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--season-end", type=int, dest="season_end")
     p.add_argument("--lookback", type=int, default=DEFAULT_LOOKBACK, help="Recent games to use as the market anchor")
     p.add_argument("--limit", type=int, default=8)
+    p.add_argument("--sleeper", action="store_true")
     p.set_defaults(func=cmd_opportunities)
 
     p = sub.add_parser("waiver-advice", help="Rank free-agent adds vs your bench")

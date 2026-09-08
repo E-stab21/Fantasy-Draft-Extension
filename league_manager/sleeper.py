@@ -16,6 +16,8 @@ TRENDING_URL = "https://api.sleeper.app/v1/players/nfl/trending/{kind}"
 PROJECTIONS_URL = "https://api.sleeper.app/projections/nfl/{season}/{week}"
 CACHE_PATH = Path("/tmp/league-manager-sleeper-players.json")
 CACHE_TTL_SECONDS = 20 * 60 * 60
+PROJ_CACHE_DIR = Path("/tmp/league-manager-sleeper-proj")
+PROJ_CACHE_TTL_SECONDS = 6 * 60 * 60
 
 
 def normalize_name(name: str) -> str:
@@ -77,6 +79,61 @@ def index_players_by_name(player_map: dict[str, Any]) -> dict[str, dict[str, Any
         record = {**player, "player_id": player_id}
         index[normalize_name(name)] = record
     return index
+
+
+def as_projection_map(raw: Any) -> dict[str, Any]:
+    """Normalize Sleeper weekly projections to {player_id: entry}."""
+    if isinstance(raw, dict):
+        first = next(iter(raw.values()), None)
+        if isinstance(first, dict):
+            return {str(key): value for key, value in raw.items()}
+        if raw.get("player_id") is not None:
+            return {str(raw["player_id"]): raw}
+        return {}
+    if isinstance(raw, list):
+        mapped: dict[str, Any] = {}
+        for item in raw:
+            if isinstance(item, dict) and item.get("player_id") is not None:
+                mapped[str(item["player_id"])] = item
+        return mapped
+    return {}
+
+
+def cached_week_projections(
+    season: int,
+    week: int,
+    http_get=None,
+    cache_dir: Path = PROJ_CACHE_DIR,
+) -> dict[str, Any]:
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    path = cache_dir / f"{season}-w{week}.json"
+    if path.exists() and time.time() - path.stat().st_mtime < PROJ_CACHE_TTL_SECONDS:
+        return json.loads(path.read_text())
+    data = projections(season, week, http_get=http_get)
+    path.write_text(json.dumps(data))
+    return data
+
+
+def remaining_week_totals(
+    season: int,
+    current_week: int,
+    through: int = 17,
+    *,
+    scoring: str = "ppr",
+    http_get=None,
+    week_maps: dict[int, Any] | None = None,
+) -> dict[str, float]:
+    totals: dict[str, float] = {}
+    start = max(int(current_week), 1)
+    end = max(int(through), start)
+    for week in range(start, end + 1):
+        raw = week_maps[week] if week_maps is not None else cached_week_projections(
+            season, week, http_get=http_get
+        )
+        for player_id, entry in as_projection_map(raw).items():
+            points = projection_points(entry, scoring) or 0.0
+            totals[player_id] = totals.get(player_id, 0.0) + points
+    return totals
 
 
 def projection_points(entry: dict[str, Any], scoring: str = "ppr") -> float | None:

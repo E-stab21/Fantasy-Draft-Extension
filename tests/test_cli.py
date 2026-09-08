@@ -166,6 +166,12 @@ def test_cli_reads_with_fake_league(monkeypatch, capsys):
     assert market["sell_high"][0]["id"] == 11
     assert market["buy_low"][0]["id"] == 21
 
+    assert main(["trade-search", "--kinds", "1:1", "--limit", "5"]) == 0
+    searched = json.loads(capsys.readouterr().out)
+    assert searched["considered"] >= 1
+    assert "trades" in searched
+    assert searched["sources"]["espn_remainder"] is True
+
 
 def test_cli_auth_status_without_secrets(monkeypatch, capsys):
     monkeypatch.delenv("ESPN_S2", raising=False)

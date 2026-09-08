@@ -1,7 +1,9 @@
 """Redraft short-term and rest-of-season player value.
 
-Uses ESPN/Sleeper weekly rates, not a trained model. Short-term is the next
-few weeks. Long-term is the rest of this season, including fantasy playoffs.
+Short-term is this week's rate over the next few games. Long-term prefers a
+real remaining-season total (FantasyPros ROS, Sleeper remaining weeks, or
+ESPN season projection minus points already scored) before falling back to
+this week flattened across the rest of the year.
 """
 
 from __future__ import annotations
@@ -92,6 +94,62 @@ def window_weights(window: str) -> tuple[float, float]:
     return WINDOW_WEIGHTS[window]
 
 
+def _float_or_none(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def espn_weekly_only(player: dict[str, Any]) -> float:
+    """ESPN this-week / average only. Used as the other manager's face value."""
+    for key in ("projected_points", "projected_avg_points"):
+        value = _float_or_none(player.get(key))
+        if value is not None and value > 0:
+            return value
+    return 0.0
+
+
+def espn_season_remainder(player: dict[str, Any]) -> float | None:
+    """ESPN season-long projection minus points already scored."""
+    total = _float_or_none(player.get("projected_total_points"))
+    if total is None or total <= 0:
+        return None
+    scored = _float_or_none(player.get("points")) or 0.0
+    remainder = total - scored
+    if remainder <= 0:
+        return None
+    return remainder
+
+
+def ros_points(player: dict[str, Any], *, lt_games: int, lt_factor: float) -> tuple[float, str]:
+    """Remaining-season points and the source that produced them."""
+    fp_ros = _float_or_none(player.get("fantasypros_ros_points"))
+    if fp_ros is not None and fp_ros > 0:
+        return fp_ros * lt_factor, "fantasypros_ros"
+    sleeper_ros = _float_or_none(player.get("sleeper_ros_points"))
+    if sleeper_ros is not None and sleeper_ros > 0:
+        return sleeper_ros * lt_factor, "sleeper_ros"
+    remainder = espn_season_remainder(player)
+    if remainder is not None:
+        return remainder * lt_factor, "espn_remainder"
+    fp_week = _float_or_none(player.get("fantasypros_weekly_points"))
+    if fp_week is not None and fp_week > 0:
+        return fp_week * lt_games * lt_factor, "fantasypros_weekly"
+    rate = weekly_rate(player)
+    return rate * lt_games * lt_factor, "weekly_times_games"
+
+
+def espn_face_value(player: dict[str, Any], context: LeagueContext) -> float:
+    """What another manager sees: ESPN weekly rate x remaining games x injury."""
+    bye = player.get("bye_week")
+    bye_week = int(bye) if bye is not None else None
+    games = games_in_weeks(context.remaining_weeks, bye_week)
+    return espn_weekly_only(player) * len(games) * injury_factor(player, horizon="lt")
+
+
 def weekly_rate(player: dict[str, Any]) -> float:
     status = str(player.get("injury_status") or "").upper()
     raw = player.get("projected_points")
@@ -168,6 +226,7 @@ class PlayerValue:
     lt_vorp: float
     blended: float
     window: str
+    ros_source: str = "weekly_times_games"
     injured: bool = False
     injury_status: str | None = None
     bye_week: int | None = None
@@ -197,7 +256,7 @@ def value_player(
     st_factor = injury_factor(player, horizon="st")
     lt_factor = injury_factor(player, horizon="lt")
     st_points = rate * len(st_games) * st_factor
-    lt_points = rate * len(lt_games) * lt_factor
+    lt_points, ros_source = ros_points(player, lt_games=len(lt_games), lt_factor=lt_factor)
     st_vorp = st_points - repl * len(st_games)
     lt_vorp = lt_points - repl * len(lt_games)
     blended = st_w * st_vorp + lt_w * lt_vorp
@@ -206,6 +265,8 @@ def value_player(
         notes.append(f"bye in week {bye_week}")
     if st_factor < 1:
         notes.append(f"short-term injury discount {st_factor:.0%}")
+    if ros_source != "weekly_times_games":
+        notes.append(f"ROS from {ros_source}")
     return PlayerValue(
         id=player.get("id"),
         name=player.get("name"),
@@ -220,6 +281,7 @@ def value_player(
         lt_vorp=round(lt_vorp, 2),
         blended=round(blended, 2),
         window=resolved_window,
+        ros_source=ros_source,
         injured=bool(player.get("injured")),
         injury_status=player.get("injury_status"),
         bye_week=bye_week,

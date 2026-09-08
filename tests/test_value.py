@@ -2,6 +2,7 @@ from league_manager.value import (
     LeagueContext,
     infer_window,
     replacement_baselines,
+    ros_points,
     value_player,
     weekly_rate,
 )
@@ -47,6 +48,7 @@ def test_bye_and_injury_cut_short_term():
     assert healthy.st_games == 2  # weeks 10,12; 11 is bye
     assert healthy.lt_games == 7  # 10-17 minus bye
     assert healthy.st_vorp == round(16 * 2 - 8 * 2, 2)
+    assert healthy.ros_source == "weekly_times_games"
 
     out = value_player(
         {
@@ -77,3 +79,57 @@ def test_replacement_uses_third_best_fa():
     assert baselines["WR"] == 9
     assert baselines["QB"] == 18
     assert weekly_rate({"projected_points": 0, "projected_avg_points": 11.5}) == 11.5
+
+
+def test_ros_prefers_fantasypros_then_sleeper_then_espn_remainder():
+    player = {
+        "projected_points": 16,
+        "fantasypros_ros_points": 140,
+        "sleeper_ros_points": 110,
+        "projected_total_points": 200,
+        "points": 80,
+    }
+    points, source = ros_points(player, lt_games=7, lt_factor=1.0)
+    assert source == "fantasypros_ros"
+    assert points == 140
+
+    del player["fantasypros_ros_points"]
+    points, source = ros_points(player, lt_games=7, lt_factor=1.0)
+    assert source == "sleeper_ros"
+    assert points == 110
+
+    del player["sleeper_ros_points"]
+    points, source = ros_points(player, lt_games=7, lt_factor=1.0)
+    assert source == "espn_remainder"
+    assert points == 120
+
+    del player["projected_total_points"]
+    points, source = ros_points(player, lt_games=7, lt_factor=1.0)
+    assert source == "weekly_times_games"
+    assert points == 16 * 7
+
+
+def test_espn_remainder_beats_flattening_this_week():
+    baselines = {"RB": 8.0}
+    flat = value_player(
+        {"id": 1, "name": "Cold", "position": "RB", "projected_points": 8},
+        _ctx(),
+        baselines,
+        window="bubble",
+    )
+    remainder = value_player(
+        {
+            "id": 1,
+            "name": "Cold",
+            "position": "RB",
+            "projected_points": 8,
+            "projected_total_points": 200,
+            "points": 40,
+        },
+        _ctx(),
+        baselines,
+        window="bubble",
+    )
+    assert remainder.ros_source == "espn_remainder"
+    assert remainder.lt_points == 160
+    assert remainder.lt_vorp > flat.lt_vorp
